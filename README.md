@@ -1,5 +1,7 @@
 # sunriseSunsetLamp
-Arduino lamp prototype acting based on sunlight phases using JavaScript.
+Arduino lamp prototype acting based on sunlight phases.
+
+![Screenshot](img/screenshot.jpg?raw=true "Screenshot")
 
 ## Prepare Arduino to receive JavaScript
 Connect Arduino to the computer.

@@ -1,38 +1,60 @@
 import Arduino from 'johnny-five';
 import SunCalc from 'suncalc';
 import Schedule from 'node-schedule';
-import debug from 'debug';
+import Debug from 'debug';
 
-const log = debug('lamp');
+const log = Debug('lamp');
 const board = new Arduino.Board();
 
 // Malmö (approximately)
 const latitude = 55.604981;
 const longitude = 13.003822;
 
-// TODO: Run again every new day and initiate correctly
-function init(led) {
-  led.color('blue');
-  led.on();
+function startupColor(today, sunCalc, led) {
+  if (
+    // Day
+    today.getTime() > sunCalc.sunriseEnd.getTime() &&
+    today.getTime() < sunCalc.sunsetStart.getTime()
+  ) {
+    led.color('blue');
+  } else if (
+    // Sunrise/sunset
+    (today.getTime() > sunCalc.dawn.getTime() &&
+    today.getTime() < sunCalc.sunriseEnd.getTime()) ||
+    (today.getTime() > sunCalc.sunsetStart.getTime() &&
+    today.getTime() < sunCalc.night.getTime())
+  ) {
+    led.color('red');
+  } else {
+    // Night
+    led.color('green');
+  }
+}
 
-  const sunCalc = SunCalc.getTimes(new Date(), latitude, longitude);
+function scheduleJobs(sunCalc, led) {
+  const jobs = [];
 
-  Schedule.scheduleJob(sunCalc.dawn, () => {
+  jobs.push(Schedule.scheduleJob(sunCalc.dawn, () => {
     log('switched to dawn');
     led.color('red');
-  });
-  Schedule.scheduleJob(sunCalc.sunriseEnd, () => {
+  }));
+  jobs.push(Schedule.scheduleJob(sunCalc.sunriseEnd, () => {
     log('switched to sunrise end');
     led.color('blue');
-  });
-  Schedule.scheduleJob(sunCalc.sunsetStart, () => {
+  }));
+  jobs.push(Schedule.scheduleJob(sunCalc.sunsetStart, () => {
     log('switched to sunset start');
     led.color('red');
-  });
-  Schedule.scheduleJob(sunCalc.night, () => {
+  }));
+  jobs.push(Schedule.scheduleJob(sunCalc.night, () => {
     log('switched to night');
     led.color('green');
-  });
+  }));
+  jobs.push(Schedule.scheduleJob(sunCalc.nightEnd, () => {
+    jobs.forEach(job => job.cancel());
+    scheduleJobs(SunCalc.getTimes(new Date(), latitude, longitude), led);
+  }));
+  log('scheduled %d jobs', jobs.length);
 }
 
 board.on('ready', () => {
@@ -45,5 +67,13 @@ board.on('ready', () => {
   });
 
   led.intensity(100);
-  init(led);
+  const today = new Date();
+  log(today);
+  const sunCalc = SunCalc.getTimes(new Date(), latitude, longitude);
+  log(sunCalc);
+
+  startupColor(today, sunCalc, led);
+  scheduleJobs(sunCalc, led);
+
+  led.on();
 });
